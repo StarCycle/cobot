@@ -13,7 +13,7 @@ from typing import Optional, List
 import torch
 import torch.nn.functional as F
 from torch import nn, Tensor
-
+import pdb
 import IPython
 e = IPython.embed
 
@@ -56,10 +56,9 @@ class Transformer(nn.Module):
     def forward(self, query_embed,
                 src, pos, is_pad,
                 robot_state_input, robot_state_pos=None,
-                latent_input=None, latent_pos=None):
-        # TODO flatten only when input has H and W
+                latent_input=None, latent_pos=None,
+                tactile_input=None, tactile_pos=None):
         if len(src.shape) == 4: # has H and W
-            # flatten NxCxHxW to HWxNxC
             bs, c, h, w = src.shape
             src = src.flatten(2).permute(2, 0, 1)
             src_is_pad = torch.full((src.shape[1], src.shape[0]), False).to(src.device)  # False: not a padding
@@ -70,9 +69,19 @@ class Transformer(nn.Module):
             # mask = mask.flatten(1)
             robot_state_pos = robot_state_pos.unsqueeze(1).repeat(1, bs, 1)  # seq, bs, dim
             latent_pos = latent_pos.unsqueeze(1).repeat(1, bs, 1)  # seq, bs, dim
-            pos = torch.cat([latent_pos, pos, robot_state_pos], axis=0)
-            src = torch.cat([latent_input, src, robot_state_input], axis=0)
-            is_pad = torch.cat([latent_is_pad, src_is_pad, robot_state_is_pad], axis=1)
+            #新增
+            if tactile_input is not None:
+                tactile_pos = tactile_pos.unsqueeze(1).repeat(1, bs, 1)
+             # 新增
+                tactile_is_pad = torch.full((bs, 1), False).to(src.device)
+                pos = torch.cat([latent_pos, pos, robot_state_pos, tactile_pos], axis=0)
+                src = torch.cat([latent_input, src, robot_state_input, tactile_input], axis=0)
+                # 拼接所有填充掩码
+                is_pad = torch.cat([latent_is_pad, src_is_pad, robot_state_is_pad, tactile_is_pad], axis=1)
+            else:
+                pos = torch.cat([latent_pos, pos, robot_state_pos], axis=0)
+                src = torch.cat([latent_input, src, robot_state_input], axis=0)
+                is_pad = torch.cat([latent_is_pad, src_is_pad, robot_state_is_pad], axis=1)
         else:
             assert len(src.shape) == 3
             # flatten NxHWxC to HWxNxC
@@ -83,7 +92,7 @@ class Transformer(nn.Module):
 
         tgt = torch.zeros_like(query_embed)
         memory = self.encoder(src, pos=pos, src_key_padding_mask=is_pad)
-        
+        pdb.set_trace()
         hs = self.decoder(tgt, memory,
                           query_pos=query_embed,
                           pos=pos,
