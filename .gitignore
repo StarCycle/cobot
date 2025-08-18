@@ -1,0 +1,12 @@
+# Python 缓存文件
+__pycache__/
+*.pyc
+
+# 训练输出文件
+train/*.ckpt
+train/*.pkl
+train/*.png
+
+# 其他临时文件
+*.log
+*.tmp
