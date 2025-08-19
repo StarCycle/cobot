@@ -61,9 +61,11 @@ class Transformer(nn.Module):
         if len(src.shape) == 4: # has H and W
             bs, c, h, w = src.shape
             src = src.flatten(2).permute(2, 0, 1)
+
             src_is_pad = torch.full((src.shape[1], src.shape[0]), False).to(src.device)  # False: not a padding
             latent_is_pad = torch.full((latent_input.shape[1], latent_input.shape[0]), False).to(src.device)  # False: not a padding
             robot_state_is_pad = torch.full((robot_state_input.shape[1], robot_state_input.shape[0]), False).to(src.device)  # False: not a padding
+            
             pos = pos.flatten(2).permute(2, 0, 1).repeat(1, bs, 1)
             query_embed = query_embed.unsqueeze(1).repeat(1, bs, 1)
             # mask = mask.flatten(1)

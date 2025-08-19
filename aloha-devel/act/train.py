@@ -6,13 +6,13 @@ import argparse
 import matplotlib.pyplot as plt
 from copy import deepcopy
 from tqdm import tqdm
-
+from pathlib import Path
 from utils import load_data 
 from utils import compute_dict_mean, set_seed, detach_dict
 from policy import ACTPolicy, CNNMLPPolicy, DiffusionPolicy
 
 import sys
-sys.path.append("./")
+sys.path.append("./ 	")
 
 
 def train(args):
@@ -121,7 +121,7 @@ def train(args):
     # save best checkpoint
     ckpt_path = os.path.join(args.ckpt_dir, args.ckpt_name)
     torch.save(best_state_dict, ckpt_path)
-    print(f'Best ckpt, val loss {min_val_loss:.6f} @ epoch{best_epoch}')
+    print(f'Best ckpt, val loss {min_val_loss:.7f} @ epoch{best_epoch}')
 
 
 def make_policy(policy_class, policy_config, pretrain_ckpt_dir):
@@ -129,10 +129,10 @@ def make_policy(policy_class, policy_config, pretrain_ckpt_dir):
         policy = ACTPolicy(policy_config)
         if len(pretrain_ckpt_dir) != 0:
             state_dict = torch.load(pretrain_ckpt_dir)
+            
             loading_status = policy.deserialize(state_dict)
             if not loading_status:
                 print("ckpt path not exist")
-
     elif policy_class == 'CNNMLP':
         policy = CNNMLPPolicy(policy_config)
         if len(pretrain_ckpt_dir) != 0:
@@ -277,9 +277,9 @@ def get_arguments():
     parser.add_argument('--num_episodes', action='store', type=int, help='num_episodes', required=True)
    
     parser.add_argument('--pretrain_ckpt', action='store', type=str, help='pretrain_ckpt', default='', required=False)
-    parser.add_argument('--task_name', action='store', type=str, help='task_name', default='aloha_mobile_dummy', required=False)
+    parser.add_argument('--task_name', action='store', type=str, help='task_name', default='test_act', required=False)
     
-    parser.add_argument('--ckpt_name', action='store', type=str, help='ckpt_name', default='policy_best.ckpt', required=False)
+    parser.add_argument('--ckpt_name', action='store', type=str, help='ckpt_name', default='test.ckpt', required=False)
     parser.add_argument('--ckpt_stats_name', action='store', type=str, help='ckpt_stats_name', default='dataset_stats.pkl', required=False)
     parser.add_argument('--policy_class', action='store', type=str, help='policy_class, capitalize, CNNMLP, ACT, Diffusion', default='ACT', required=False)
     parser.add_argument('--batch_size', action='store', type=int, help='batch_size', default=32, required=False)

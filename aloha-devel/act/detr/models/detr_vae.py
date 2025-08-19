@@ -43,14 +43,16 @@ def get_sinusoid_encoding_table(n_position, d_hid):
 class DETRVAE(nn.Module):
     """ This is the DETR module that performs object detection """
     def __init__(self, backbones, depth_backbones, transformer, encoder, state_dim, num_queries, camera_names, kl_weight):
-        """ Initializes the model.
-        Parameters:
-            backbones: torch module of the backbone to be used. See backbone.py
-            transformer: torch module of the transformer architecture. See transformer.py
-            state_dim: robot state dimension of the environment
-            num_queries: number of object queries, ie detection slot. This is the maximal number of objects
-                         DETR can detect in a single image. For COCO, we recommend 100 queries.
-            aux_loss: True if auxiliary decoding losses (loss at each decoder layer) are to be used.
+        """
+        参数说明：
+            backbones:        多相机图像主干网络列表(ModuleList 形式）
+            depth_backbones:  多相机深度图主干网络列表，或 None
+            transformer:      变换器结构（包含 .d_model 指明 hidden_dim)
+            encoder:          VAE 的动作序列编码器
+            state_dim:        机器人状态维度
+            num_queries:      解码器查询数量(DETR 物体槽位数）
+            camera_names:     相机名列表，对应 backbones 的顺序
+            kl_weight:        VAE KL 权重,0 表示关闭 VAE 分支
         """
         super().__init__()
         self.num_queries = num_queries
@@ -88,14 +90,20 @@ class DETRVAE(nn.Module):
 
         self.latent_pos = nn.Embedding(1, hidden_dim)
         self.robot_state_pos = nn.Embedding(1, hidden_dim)
+        # 新增:定义tactile_pos
+        self.tactile_pos = nn.Embedding(1, hidden_dim)
+        self.tactile_proj = nn.Sequential(
+            nn.Flatten(),          
+            nn.LazyLinear(hidden_dim)  
+        )
 
         if kl_weight != 0:
             self.encoder_action_proj = nn.Linear(state_dim, hidden_dim)  # project action to embedding
             self.encoder_joint_proj = nn.Linear(state_dim, hidden_dim)  # project qpos to embedding
             self.latent_proj = nn.Linear(hidden_dim, self.latent_dim*2)  # project hidden state to latent std, var
             self.register_buffer('pos_table', get_sinusoid_encoding_table(1+1+num_queries, hidden_dim))  # [CLS], qpos, a_seq
-
-    def forward(self, image, depth_image, robot_state, actions=None, action_is_pad=None):
+    # 新增触觉输入
+    def forward(self, image, depth_image, robot_state, actions=None, action_is_pad=None, tactile_input=None):
         """
         qpos: batch, qpos_dim
         image: batch, num_cam, channel, height, width
@@ -108,7 +116,9 @@ class DETRVAE(nn.Module):
         is_training = actions is not None  # train or val
         bs, _ = robot_state.shape
 
-        # Obtain latent z from action sequence
+        # -----------------------------
+        # VAE：由动作序列得到 z（训练时）
+        # -----------------------------
         if is_training and self.kl_weight != 0:  # hidden_dim输入参数是512
             action_embed = self.encoder_action_proj(actions)  # (bs, seq, hidden_dim)
             robot_state_embed = self.encoder_joint_proj(robot_state)  # (bs, hidden_dim)
@@ -136,15 +146,15 @@ class DETRVAE(nn.Module):
             mu = logvar = None
             latent_sample = torch.zeros([bs, self.latent_dim], dtype=torch.float32).to(robot_state.device)
             latent_input = self.latent_out_proj(latent_sample)
-        # Image observation features and position embeddings
+        # -----------------------------
+        # 图像分支：提特征 + 位置编码，并跨相机在宽度维拼接
+        # -----------------------------
         all_cam_features = []
         all_cam_depth_features = []
         all_cam_pos = []
         for cam_id, cam_name in enumerate(self.camera_names):
             # features, pos = self.backbones[0](image[:, cam_id])  # HARDCODED
             features, src_pos = self.backbones[cam_id](image[:, cam_id]) # HARDCODED
-            # image_test = image[:, cam_id][:, 0].unsqueeze(dim=1)
-            # print("depth_encoder:", self.depth_encoder(image_test))
             features = features[0]  # take the last layer feature
             src_pos = src_pos[0]
             if self.depth_backbones is not None and depth_image is not None:
@@ -157,13 +167,27 @@ class DETRVAE(nn.Module):
         robot_state_input = self.input_proj_robot_state(robot_state)
         robot_state_input = torch.unsqueeze(robot_state_input, axis=0)
         latent_input = torch.unsqueeze(latent_input, axis=0)
+        # -----------------------------
+        # 触觉分支：新增
+        # -----------------------------
+        if tactile_input is None:
+            # 长度为0的占位序列
+            tactile_embed     = torch.empty(0, bs, hidden_dim, device=device, dtype=src.dtype)
+            tactile_pos_embed = torch.empty(0, hidden_dim, device=device, dtype=src.dtype)
+        else:
+            tactile_vec = self.tactile_proj(tactile_input)         # (bs, hidden_dim)
+            tactile_embed = tactile_vec.unsqueeze(0)               # (1, bs, hidden_dim)
+            tactile_pos_embed = self.tactile_pos.weight            # (1, hidden_dim)
+
         # fold camera dimension into width dimension
         src = torch.cat(all_cam_features, axis=3)
         src_pos = torch.cat(all_cam_pos, axis=3)
+        # 新增：传入transformer
         hs = self.transformer(self.query_embed.weight,
                               src, src_pos, None,
                               robot_state_input, self.robot_state_pos.weight,
-                              latent_input, self.latent_pos.weight)[0]
+                              latent_input, self.latent_pos.weight,
+                              tactile_embed, tactile_pos_embed)[0]
         a_hat = self.action_head(hs)
         return a_hat, [mu, logvar]
 
