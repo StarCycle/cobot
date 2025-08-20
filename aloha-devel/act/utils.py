@@ -44,6 +44,11 @@ class EpisodicDataset(torch.utils.data.Dataset):
             actions = root['/action'][1:]
             actions = np.append(actions, actions[-1][np.newaxis, :], axis=0)
             qpos = root['/observations/qpos'][start_ts]
+            # 新增：读取触觉数据（暂时使用effort）
+            tactile = None
+            if '/observations/effort' in root:
+                tactile = root['/observations/effort'][start_ts]
+
             if self.use_robot_base:
                 qpos = np.concatenate((qpos, root['/base_action'][start_ts]), axis=0)
             image_dict = dict()
@@ -99,13 +104,18 @@ class EpisodicDataset(torch.utils.data.Dataset):
         action_data = torch.from_numpy(padded_action).float()
         action_is_pad = torch.from_numpy(action_is_pad).bool()
         action_data = (action_data - self.norm_stats["action_mean"]) / self.norm_stats["action_std"]
+        # 新增：触觉数据后处理（暂时和qpos用一样的）
+        tactile_data = None
+        if tactile is not None:
+            tactile = torch.from_numpy(tactile).float()
+            tactile_data = (tactile - self.norm_stats["qpos_mean"]) / self.norm_stats["qpos_std"]
 
         # torch.set_printoptions(precision=10, sci_mode=False)
         # torch.set_printoptions(threshold=float('inf'))
         # print("qpos_data:", qpos_data[7:])
         # print("action_data:", action_data[:, 7:])
 
-        return image_data, image_depth_data, qpos_data, action_data, action_is_pad
+        return image_data, image_depth_data, qpos_data, action_data, action_is_pad, tactile_data
 
 
 def get_norm_stats(dataset_dir, num_episodes, use_robot_base):

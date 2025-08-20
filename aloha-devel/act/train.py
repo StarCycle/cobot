@@ -163,14 +163,24 @@ def make_optimizer(policy_class, policy):
 
 
 def forward_pass(policy_config, data, policy):
-    image_data, image_depth_data, qpos_data, action_data, action_is_pad = data
+    # 新增：支持触觉数据的前向封装
+    if len(data) == 6:
+        image_data, image_depth_data, qpos_data, action_data, action_is_pad, tactile_data = data
+    else:
+        image_data, image_depth_data, qpos_data, action_data, action_is_pad = data
+        tactile_data = None
+
     (image_data, qpos_data, action_data, action_is_pad) = (image_data.cuda(), qpos_data.cuda(),
                                                            action_data.cuda(), action_is_pad.cuda())
+    
+    tactile_input = tactile_data.cuda() if tactile_data is not None else None
+
     if policy_config['use_depth_image']:
         image_depth_data = image_depth_data.cuda()
     else:
         image_depth_data = None
-    return policy(image_data, image_depth_data, qpos_data, action_data, action_is_pad)
+
+    return policy(image_data, image_depth_data, qpos_data, action_data, action_is_pad, tactile_input)
 
 
 def train_process(train_dataloader, val_dataloader, config, stats):

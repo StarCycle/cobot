@@ -51,7 +51,7 @@ class ACTPolicy(nn.Module):
 
         print(f'KL Weight {self.kl_weight}')
 
-    def __call__(self, image, depth_image, robot_state, actions=None, action_is_pad=None):
+    def __call__(self, image, depth_image, robot_state, actions=None, action_is_pad=None, tactile_input=None):
 
         normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406],
                                          std=[0.229, 0.224, 0.225])
@@ -66,7 +66,9 @@ class ACTPolicy(nn.Module):
             actions = actions[:, :self.model.num_queries]
             action_is_pad = action_is_pad[:, :self.model.num_queries]
 
-            a_hat, (mu, logvar) = self.model(image, depth_image, robot_state, actions, action_is_pad)
+            # 新增，传入触觉
+            a_hat, (mu, logvar) = self.model(image, depth_image, robot_state, actions, action_is_pad, tactile_input)
+            
 
             loss_dict = dict()
             if self.loss_function == 'l1':
@@ -88,7 +90,7 @@ class ACTPolicy(nn.Module):
 
             return loss_dict, a_hat
         else:  # inference time
-            a_hat, (_, _) = self.model(image, depth_image, robot_state)  # no action, sample from prior
+            a_hat, (_, _) = self.model(image, depth_image, robot_state, tactile_input)  # no action, sample from prior
             return a_hat
 
     def configure_optimizers(self):

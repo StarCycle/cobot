@@ -59,7 +59,7 @@ class DETRVAE(nn.Module):
         self.camera_names = camera_names
         self.transformer = transformer
         self.encoder = encoder
-        hidden_dim = transformer.d_model
+        self.hidden_dim = transformer.d_model
         self.action_head = nn.Linear(hidden_dim, state_dim)
         self.query_embed = nn.Embedding(num_queries, hidden_dim)
         self.kl_weight = kl_weight
@@ -172,8 +172,8 @@ class DETRVAE(nn.Module):
         # -----------------------------
         if tactile_input is None:
             # 长度为0的占位序列
-            tactile_embed     = torch.empty(0, bs, hidden_dim, device=device, dtype=src.dtype)
-            tactile_pos_embed = torch.empty(0, hidden_dim, device=device, dtype=src.dtype)
+            tactile_embed     = torch.empty(0, bs, self.hidden_dim, device=device, dtype=src.dtype)
+            tactile_pos_embed = torch.empty(0, self.hidden_dim, device=device, dtype=src.dtype)
         else:
             tactile_vec = self.tactile_proj(tactile_input)         # (bs, hidden_dim)
             tactile_embed = tactile_vec.unsqueeze(0)               # (1, bs, hidden_dim)
