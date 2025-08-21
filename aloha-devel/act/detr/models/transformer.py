@@ -94,7 +94,7 @@ class Transformer(nn.Module):
 
         tgt = torch.zeros_like(query_embed)
         memory = self.encoder(src, pos=pos, src_key_padding_mask=is_pad)
-        pdb.set_trace()
+        # pdb.set_trace()
         hs = self.decoder(tgt, memory,
                           query_pos=query_embed,
                           pos=pos,

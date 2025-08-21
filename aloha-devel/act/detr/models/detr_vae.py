@@ -60,48 +60,48 @@ class DETRVAE(nn.Module):
         self.transformer = transformer
         self.encoder = encoder
         self.hidden_dim = transformer.d_model
-        self.action_head = nn.Linear(hidden_dim, state_dim)
-        self.query_embed = nn.Embedding(num_queries, hidden_dim)
+        self.action_head = nn.Linear(self.hidden_dim, state_dim)
+        self.query_embed = nn.Embedding(num_queries, self.hidden_dim)
         self.kl_weight = kl_weight
 
         if backbones is not None:
             # print("backbones[0]", backbones[0])
             if depth_backbones is not None:
                 self.depth_backbones = nn.ModuleList(depth_backbones)
-                self.input_proj = nn.Conv2d(backbones[0].num_channels + depth_backbones[0].num_channels, hidden_dim, kernel_size=1)
+                self.input_proj = nn.Conv2d(backbones[0].num_channels + depth_backbones[0].num_channels, self.hidden_dim, kernel_size=1)
             else:
                 self.depth_backbones = None
-                self.input_proj = nn.Conv2d(backbones[0].num_channels, hidden_dim, kernel_size=1)
+                self.input_proj = nn.Conv2d(backbones[0].num_channels, self.hidden_dim, kernel_size=1)
             self.backbones = nn.ModuleList(backbones)
-            self.input_proj_robot_state = nn.Linear(state_dim, hidden_dim)
+            self.input_proj_robot_state = nn.Linear(state_dim, self.hidden_dim)
         
         else:
             # input_dim = 14 + 7 # robot_state + env_state
-            self.input_proj_robot_state = nn.Linear(state_dim, hidden_dim)
-            self.pos = torch.nn.Embedding(2, hidden_dim)
+            self.input_proj_robot_state = nn.Linear(state_dim, self.hidden_dim)
+            self.pos = torch.nn.Embedding(2, self.hidden_dim)
             self.backbones = None
 
         # encoder extra parameters
         self.latent_dim = 32  # final size of latent z # TODO tune
-        self.cls_embed = nn.Embedding(1, hidden_dim)  # extra cls token embedding
+        self.cls_embed = nn.Embedding(1, self.hidden_dim)  # extra cls token embedding
 
         # decoder extra parameters
-        self.latent_out_proj = nn.Linear(self.latent_dim, hidden_dim)  # project latent sample to embedding
+        self.latent_out_proj = nn.Linear(self.latent_dim, self.hidden_dim)  # project latent sample to embedding
 
-        self.latent_pos = nn.Embedding(1, hidden_dim)
-        self.robot_state_pos = nn.Embedding(1, hidden_dim)
+        self.latent_pos = nn.Embedding(1, self.hidden_dim)
+        self.robot_state_pos = nn.Embedding(1, self.hidden_dim)
         # 新增:定义tactile_pos
-        self.tactile_pos = nn.Embedding(1, hidden_dim)
+        self.tactile_pos = nn.Embedding(1, self.hidden_dim)
         self.tactile_proj = nn.Sequential(
             nn.Flatten(),          
-            nn.LazyLinear(hidden_dim)  
+            nn.Linear(state_dim, self.hidden_dim)  
         )
 
         if kl_weight != 0:
-            self.encoder_action_proj = nn.Linear(state_dim, hidden_dim)  # project action to embedding
-            self.encoder_joint_proj = nn.Linear(state_dim, hidden_dim)  # project qpos to embedding
-            self.latent_proj = nn.Linear(hidden_dim, self.latent_dim*2)  # project hidden state to latent std, var
-            self.register_buffer('pos_table', get_sinusoid_encoding_table(1+1+num_queries, hidden_dim))  # [CLS], qpos, a_seq
+            self.encoder_action_proj = nn.Linear(state_dim, self.hidden_dim)  # project action to embedding
+            self.encoder_joint_proj = nn.Linear(state_dim, self.hidden_dim)  # project qpos to embedding
+            self.latent_proj = nn.Linear(self.hidden_dim, self.latent_dim*2)  # project hidden state to latent std, var
+            self.register_buffer('pos_table', get_sinusoid_encoding_table(1+1+num_queries, self.hidden_dim))  # [CLS], qpos, a_seq
     # 新增触觉输入
     def forward(self, image, depth_image, robot_state, actions=None, action_is_pad=None, tactile_input=None):
         """
