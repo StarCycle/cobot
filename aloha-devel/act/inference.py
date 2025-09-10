@@ -234,13 +234,20 @@ def inference_process(args, config, ros_operator, policy, stats, t, pre_action):
         # 归一化处理qpos 并转到cuda
         qpos = pre_pos_process(obs['qpos'])
         qpos = torch.from_numpy(qpos).float().cuda().unsqueeze(0)
+
+        # 新增： 归一化处理effort 并转到cuda
+        # effort = pre_pos_process(obs['effort'])
+        # effort = torch.from_numpy(effort).float().cuda().unsqueeze(0)
+
         # 当前图像curr_image获取图像
         curr_image = get_image(obs, config['camera_names'])
         curr_depth_image = None
         if args.use_depth_image:
             curr_depth_image = get_depth_image(obs, config['camera_names'])
         start_time = time.time()
+
         all_actions = policy(curr_image, curr_depth_image, qpos)
+
         end_time = time.time()
         print("model cost time: ", end_time -start_time)
         inference_lock.acquire()
