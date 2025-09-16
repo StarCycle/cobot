@@ -166,6 +166,7 @@ def forward_pass(policy_config, data, policy):
     # 新增：支持触觉数据的前向封装
     if len(data) == 6:
         image_data, image_depth_data, qpos_data, action_data, action_is_pad, tactile_data = data
+        print(f"触觉数据非空")
     else:
         image_data, image_depth_data, qpos_data, action_data, action_is_pad = data
         tactile_data = None

@@ -91,6 +91,7 @@ class ACTPolicy(nn.Module):
             return loss_dict, a_hat
         else:  # inference time
             a_hat, (_, _) = self.model(image, depth_image, robot_state, tactile_input)  # no action, sample from prior
+            print("model output a_hat:", a_hat.shape, a_hat[0, :5])  # 只显示前5个动作
             return a_hat
 
     def configure_optimizers(self):

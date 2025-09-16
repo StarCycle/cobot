@@ -183,6 +183,7 @@ def get_depth_image(observation, camera_names):
 
 
 def inference_process(args, config, ros_operator, policy, stats, t, pre_action):
+
     global inference_lock
     global inference_actions
     global inference_timestep
@@ -236,8 +237,22 @@ def inference_process(args, config, ros_operator, policy, stats, t, pre_action):
         qpos = torch.from_numpy(qpos).float().cuda().unsqueeze(0)
 
         # 新增： 归一化处理effort 并转到cuda
-        # effort = pre_pos_process(obs['effort'])
-        # effort = torch.from_numpy(effort).float().cuda().unsqueeze(0)
+        eff_raw = np.array(obs['effort'])
+        q_mean = np.array(stats['qpos_mean'])
+        q_std = np.array(stats['qpos_std'])
+        if q_mean.shape[0] >= eff_raw.shape[0]:
+            q_mean_eff = q_mean[:eff_raw.shape[0]]
+            q_std_eff = q_std[:eff_raw.shape[0]]
+        else:
+            pad = eff_raw.shape[0] - q_mean.shape[0]
+            q_mean_eff = np.concatenate([q_mean, np.zeros(pad)], axis=0)
+            q_std_eff = np.concatenate([q_std, np.ones(pad)], axis=0)
+        # 防止除以零
+        q_std_eff = q_std_eff + 1e-8
+        effort = (eff_raw - q_mean_eff) / q_std_eff
+        effort = torch.from_numpy(effort).float().cuda().unsqueeze(0)
+
+
 
         # 当前图像curr_image获取图像
         curr_image = get_image(obs, config['camera_names'])
@@ -246,7 +261,7 @@ def inference_process(args, config, ros_operator, policy, stats, t, pre_action):
             curr_depth_image = get_depth_image(obs, config['camera_names'])
         start_time = time.time()
 
-        all_actions = policy(curr_image, curr_depth_image, qpos)
+        all_actions = policy(curr_image, curr_depth_image, qpos, tactile_input=effort)
 
         end_time = time.time()
         print("model cost time: ", end_time -start_time)
@@ -263,7 +278,7 @@ def inference_process(args, config, ros_operator, policy, stats, t, pre_action):
 
 
 def model_inference(args, config, ros_operator, save_episode=True):
-    global inference_lock
+    global inference_lockc
     global inference_actions
     global inference_timestep
     global inference_thread
@@ -272,7 +287,11 @@ def model_inference(args, config, ros_operator, save_episode=True):
     # 1 创建模型数据  继承nn.Module
     policy = make_policy(config['policy_class'], config['policy_config'])
     # print("model structure\n", policy.model)
-    
+    # === debug begin ===
+    print("DEBUG: model type =", type(policy.model))
+    print("DEBUG: model =", policy.model)
+    print("DEBUG: first 30 keys =", list(policy.model.state_dict().keys())[:30])
+    # === debug end ===
     # 2 加载模型权重
     ckpt_path = os.path.join(config['ckpt_dir'], config['ckpt_name'])
     state_dict = torch.load(ckpt_path)
