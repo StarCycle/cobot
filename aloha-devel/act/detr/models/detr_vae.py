@@ -120,11 +120,17 @@ class DETRVAE(nn.Module):
         # VAE：由动作序列得到 z（训练时）
         # -----------------------------
         if is_training and self.kl_weight != 0:  # hidden_dim输入参数是512
+            if len(actions.shape) != 3:
+                raise ValueError(f"Expected actions to be 3D (bs, seq, action_dim), got {actions.shape}")
             action_embed = self.encoder_action_proj(actions)  # (bs, seq, hidden_dim)
             robot_state_embed = self.encoder_joint_proj(robot_state)  # (bs, hidden_dim)
             robot_state_embed = torch.unsqueeze(robot_state_embed, axis=1)  # (bs, 1, hidden_dim)
             cls_embed = self.cls_embed.weight  # (1, hidden_dim)
             cls_embed = torch.unsqueeze(cls_embed, axis=0).repeat(bs, 1, 1)  # (bs, 1, hidden_dim)
+            # 在encoder_input拼接前添加
+            print("cls_embed shape:", cls_embed.shape)
+            print("robot_state_embed shape:", robot_state_embed.shape)
+            print("action_embed shape:", action_embed.shape)
             encoder_input = torch.cat([cls_embed, robot_state_embed, action_embed], axis=1)  # (bs, seq+1, hidden_dim)
             encoder_input = encoder_input.permute(1, 0, 2)  # (seq+1, bs, hidden_dim)
             cls_joint_is_pad = torch.full((bs, 2), False).to(robot_state.device)  # False: not a padding
